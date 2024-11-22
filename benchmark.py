@@ -6,17 +6,12 @@ import torch
 from linear_attn import chunkwise_attn, recurrent_attn
 from fla.ops.linear_attn.naive import naive_chunk_linear_attn as fla_chunkwise_attn
 
-### ensure same API for all functions
-ATTN_FUNC = {'chunkwise': chunkwise_attn,
-             'recurrent': recurrent_attn,
-             'fla_chunkwise': lambda Q,K,V: fla_chunkwise_attn(Q.unsqueeze(1), K.unsqueeze(1), V.unsqueeze(1), scale=1).squeeze(1)}
-
 #TODO : bfloat16??? (checker d'abord si les calculs se font bien en bfloat16 en vrai)
 #TODO : comment, à partir de ça, faire des graphiques où l'on fait varier une variable?
-#TODO : comment prendre en compte le chunk_size? (un paramètre de chunkwise mais pas de recurrent)
+#TODO : backward
 
 device = "cpu"
-requires_grad = False
+requires_grad = True
 WARMUP_STEPS = 10
 MEASURE_STEPS = 10
 
@@ -25,9 +20,15 @@ parser.add_argument('--type', type=str, required=True, help="chunkwise,recurent"
 parser.add_argument('--B', type=int, required=False, default=1)
 parser.add_argument('--L', type=int, required=False, default=1024)
 parser.add_argument('--D', type=int, required=False, default=128)
+parser.add_argument('--chunk_size', type=int, required=False, default=128)
 parser.add_argument('--profile', type=bool, required=False, default=False)
 
 args = parser.parse_args()
+
+# ensure same API for all functions
+ATTN_FUNC = {'chunkwise': lambda Q,K,V: chunkwise_attn(Q, K, V, chunk_size=args.chunk_size),
+             'recurrent': recurrent_attn,
+             'fla_chunkwise': lambda Q,K,V: fla_chunkwise_attn(Q.unsqueeze(1), K.unsqueeze(1), V.unsqueeze(1), scale=1, chunk_size=args.chunk_size).squeeze(1)}
 
 Q = torch.randn(args.B, args.L, args.D, requires_grad=requires_grad).to(device=device)
 K = torch.randn(args.B, args.L, args.D, requires_grad=requires_grad).to(device=device)
